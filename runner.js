@@ -3,7 +3,6 @@
 (function () {
     'use strict';
 
-    var lineReader = require('line-reader');
     var util = require('util');
     var child_process = require('child_process');
     var xml2js = require('xml2js');
