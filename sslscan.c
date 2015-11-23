@@ -1573,68 +1573,65 @@ int checkCertificate(struct sslCheckOptions *options, const SSL_METHOD *sslMetho
                                         printf_xml("   <pk error=\"true\" />\n");
                                     }
                                     else
-                                        keyBits = BN_num_bits(publicKey->pkey.rsa->n);
-                                        printf("Public Key: Error: false, Type: %s, Key Strengt: %d\n", publicKey->type, );
-                                        printf_xml("   <pk error=\"false\" />\n");
-                                    // {
-                                    //     switch (publicKey->type)
-                                    //     {
-                                    //         case EVP_PKEY_RSA:
-                                    //             if (publicKey->pkey.rsa)
-                                    //             {
-                                    //                 keyBits = BN_num_bits(publicKey->pkey.rsa->n);
-                                    //                 if (keyBits < 2048 )
-                                    //                 {
-                                    //                     printf("RSA Key Strength:    %s%d%s\n", COL_RED, keyBits, RESET);
-                                    //                 }
-                                    //                 else if (keyBits >= 4096 )
-                                    //                 {
-                                    //                     printf("RSA Key Strength:    %s%d%s\n", COL_GREEN, keyBits, RESET);
-                                    //                 }
-                                    //                 else
-                                    //                 {
-                                    //                     printf("RSA Key Strength:    %d\n", keyBits);
-                                    //                 }
-                                    //
-                                    //                 printf_xml("   <pk error=\"false\" type=\"RSA\" bits=\"%d\" />\n", BN_num_bits(publicKey->pkey.rsa->n));
-                                    //             }
-                                    //             else
-                                    //             {
-                                    //                 printf("    RSA Public Key: NULL\n");
-                                    //             }
-                                    //             printf("\n");
-                                    //             break;
-                                    //         case EVP_PKEY_DSA:
-                                    //             if (publicKey->pkey.dsa)
-                                    //             {
-                                    //                 // TODO - display key strength
-                                    //                 printf_xml("   <pk error=\"false\" type=\"DSA\" />\n");
-                                    //                 /* DSA_print(stdoutBIO, publicKey->pkey.dsa, 6); */
-                                    //             }
-                                    //             else
-                                    //             {
-                                    //                 printf("    DSA Public Key: NULL\n");
-                                    //             }
-                                    //             break;
-                                    //         case EVP_PKEY_EC:
-                                    //             if (publicKey->pkey.ec)
-                                    //             {
-                                    //                 // TODO - display key strength
-                                    //                 printf_xml("   <pk error=\"false\" type=\"EC\" />\n");
-                                    //                 /* EC_KEY_print(stdoutBIO, publicKey->pkey.ec, 6); */
-                                    //             }
-                                    //             else
-                                    //             {
-                                    //                 printf("    EC Public Key: NULL\n");
-                                    //             }
-                                    //             break;
-                                    //         default:
-                                    //             printf("    Public Key: Unknown\n");
-                                    //             printf_xml("   <pk error=\"true\" type=\"unknown\" />\n");
-                                    //             break;
-                                    //     }
-                                    //
-                                    //     EVP_PKEY_free(publicKey);
+                                    {
+                                        switch (publicKey->type)
+                                        {
+                                            case EVP_PKEY_RSA:
+                                                if (publicKey->pkey.rsa)
+                                                {
+                                                    keyBits = BN_num_bits(publicKey->pkey.rsa->n);
+                                                    if (keyBits < 2048 )
+                                                    {
+                                                        printf("RSA Key Strength:    %s%d%s\n", COL_RED, keyBits, RESET);
+                                                    }
+                                                    else if (keyBits >= 4096 )
+                                                    {
+                                                        printf("RSA Key Strength:    %s%d%s\n", COL_GREEN, keyBits, RESET);
+                                                    }
+                                                    else
+                                                    {
+                                                        printf("RSA Key Strength:    %d\n", keyBits);
+                                                    }
+
+                                                    printf_xml("   <pk error=\"false\" type=\"RSA\" bits=\"%d\" />\n", BN_num_bits(publicKey->pkey.rsa->n));
+                                                }
+                                                else
+                                                {
+                                                    printf("    RSA Public Key: NULL\n");
+                                                }
+                                                printf("\n");
+                                                break;
+                                            case EVP_PKEY_DSA:
+                                                if (publicKey->pkey.dsa)
+                                                {
+                                                    // TODO - display key strength
+                                                    printf_xml("   <pk error=\"false\" type=\"DSA\" />\n");
+                                                    /* DSA_print(stdoutBIO, publicKey->pkey.dsa, 6); */
+                                                }
+                                                else
+                                                {
+                                                    printf("    DSA Public Key: NULL\n");
+                                                }
+                                                break;
+                                            case EVP_PKEY_EC:
+                                                if (publicKey->pkey.ec)
+                                                {
+                                                    // TODO - display key strength
+                                                    printf_xml("   <pk error=\"false\" type=\"EC\" />\n");
+                                                    /* EC_KEY_print(stdoutBIO, publicKey->pkey.ec, 6); */
+                                                }
+                                                else
+                                                {
+                                                    printf("    EC Public Key: NULL\n");
+                                                }
+                                                break;
+                                            default:
+                                                printf("    Public Key: Unknown\n");
+                                                printf_xml("   <pk error=\"true\" type=\"unknown\" />\n");
+                                                break;
+                                        }
+
+                                        EVP_PKEY_free(publicKey);
                                     }
                                 }
 

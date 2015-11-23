@@ -14,5 +14,8 @@
 Follow: https://www.mattandreko.com/2014/12/17/compiling-sslscan-with-sslv2-support-on-osx/
 but use this version of openssl: https://www.openssl.org/source/openssl-1.0.2d.tar.gz
 
+## Linux
+``make static``
+
 # Run
 ``node runner.js``
