@@ -117,7 +117,11 @@
 
                     // insert into DB
                     scans.insert(scan, function(err, doc){
-                        console.log("... and written into DB", doc.insertedIds);
+                        if (err) {
+                            console.log(err);
+                        } else {
+                            console.log("... and written into DB", doc.insertedIds);
+                        }
                     });
 
                 } else {
