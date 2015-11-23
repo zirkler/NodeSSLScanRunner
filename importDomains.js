@@ -5,7 +5,6 @@
 
     var util = require('util');
     var child_process = require('child_process');
-    var parser = new xml2js.Parser();
     var fs = require('fs');
     var MongoClient = require('mongodb').MongoClient;
 
