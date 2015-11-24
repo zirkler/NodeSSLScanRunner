@@ -9,6 +9,7 @@
     var parser = new xml2js.Parser();
     var fs = require('fs');
     var MongoClient = require('mongodb').MongoClient;
+    var cipherInfo = require('./mapCiphers');
 
     var filename = "top-7k.txt";
     var domains; // the domains collection
@@ -74,6 +75,19 @@
                     console.log("... found ", result.document.ssltest[0].cipher.length, " ciphers");
                     for (var i = 0; i < result.document.ssltest[0].cipher.length; i++) {
                         var cipher = result.document.ssltest[0].cipher[i].$;
+                        var additionalCipherInfo = cipherInfo.getCipherInfos(cipher.cipher);
+
+                        cipher.protocol = cipher.sslversion;
+                        delete cipher.sslversion;
+
+                        cipher.kx = additionalCipherInfo.kx;
+                        cipher.kxStrenght = 0;
+                        if (cipher.ecdhebits) { cipher.kxStrenght = cipher.ecdhebits; delete cipher.ecdhebits; }
+                        if (cipher.dhebits) { cipher.kxStrenght = cipher.dhebits; delete cipher.dhebits; }
+                        cipher.au = additionalCipherInfo.au;
+                        cipher.enc = additionalCipherInfo.enc;
+                        cipher.mac = additionalCipherInfo.mac;
+                        cipher.export = additionalCipherInfo.export;
                         scan.ciphers.push(cipher);
                     }
 
