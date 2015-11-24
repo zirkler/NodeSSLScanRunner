@@ -55,7 +55,7 @@
         // execute SSLScan
         console.log();
         console.log(domain, '➡ starting SSLScan'.yellow);
-        var output = exec('./sslscan', ['--no-heartbleed', util.format('--xml=%s', xmlFileName), domain], { encoding: 'utf8' });
+        var output = exec('./sslscan', ['--no-colour', '--no-heartbleed', util.format('--xml=%s', xmlFileName), domain], { encoding: 'utf8' });
 
         // setup our scan object, we save this to the DB
         var scan = {
