@@ -96,7 +96,7 @@
                     var publicKeyLength = 0;
 
                     // receive certificate
-                    var receiveCertCmd = util.format('openssl s_client -showcerts -connect %s:443 </dev/null 2>/dev/null | openssl x509 -outform PEM > %s', domain, pemFileName);
+                    var receiveCertCmd = util.format('openssl s_client --no-heartbleed -showcerts -connect %s:443 </dev/null 2>/dev/null | openssl x509 -outform PEM > %s', domain, pemFileName);
                     child_process.execSync(receiveCertCmd, { encoding: 'utf8' });
 
                     // view the cert with x509
