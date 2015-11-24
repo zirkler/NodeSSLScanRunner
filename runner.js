@@ -11,14 +11,13 @@
     var fs = require('fs');
     var MongoClient = require('mongodb').MongoClient;
     var cipherInfo = require('./mapCiphers');
+    var colors = require('colors');
 
-    var filename = "top-7k.txt";
     var domains; // the domains collection
     var scans; // the scans collection
 
-
     // connect to mongodb
-    MongoClient.connect("mongodb://localhost:27017/czTls", function(err, db) {
+    MongoClient.connect('mongodb://localhost:27017/czTls', function(err, db) {
         if (!err) {
             // here we are going to save our temporary files
             child_process.execSync('mkdir -p tmp', { encoding: 'utf8' });
@@ -30,8 +29,7 @@
 
     var workOnNextDomain = function(db) {
         // receive a domain from mongoDB
-        var line = 'google.de';
-        domains.findOne({wip: false}, {sort: "lastScanDate"}, function(err, document) {
+        domains.findOne({wip: false}, {sort: 'lastScanDate'}, function(err, document) {
             if (err) console.log(err);
 
             // mark this domain as WIP
@@ -42,43 +40,45 @@
                 },
                 function(err, results) {
                     // now start the scan on this domain
-                    scan(document.domain, db);
+                    scan(document.domain, db, document.source);
                 }
             );
         });
     };
 
-    var scan = function(domain, db) {
+    var scan = function(domain, db, source) {
         var xmlFileName = util.format('tmp/%s.xml', domain);
         var pemFileName = util.format('tmp/%s.pem', domain);
         var sslScanCmd = './sslscan';
         var sslScanArgs = util.format('--no-heartbleed --xml=%s %s', xmlFileName, domain);
 
         // execute SSLScan
-        console.log('\n', domain, "➡ starting SSLScan");
+        console.log();
+        console.log(domain, '➡ starting SSLScan'.yellow);
         var output = exec('./sslscan', ['--no-heartbleed', util.format('--xml=%s', xmlFileName), domain], { encoding: 'utf8' });
+
+        // setup our scan object, we save this to the DB
+        var scan = {
+            source: source,
+            date: new Date(),
+            domain: domain
+        };
 
         if (output.stderr.length > 0) {
             // SSLScan executed with errors errors
             // TODO: write to error in some way to DB
-            console.log(domain, "𝗫 SSLScan had problems on this url:", output.stderr);
+            console.log(domain, 'X SSLScan had problems on this url:'.red, output.stderr);
+            scan.error = true;
+            scan.errorText = output.stderr;
+            scans.insert(scan);
             workOnNextDomain(db);
         } else {
             // SSLScan executed without errors
             try {
                 // read the xml and parse it to json
-                var xmlFile = fs.readFileSync(xmlFileName, "utf8");
+                var xmlFile = fs.readFileSync(xmlFileName, 'utf8');
                 parser.parseString(xmlFile, function(err, result) {
-                    if (err) console.log("parseErr", err);
-
-                    // setup our scan object, we save this to the DB
-                    var scan = {
-                        source: filename,
-                        date: new Date(),
-                        domain: domain,
-                        ciphers: [],
-                        certificate: {}
-                    };
+                    if (err) console.log('parseErr', err);
 
                     // get some more certificate information via OpenSLL
                     var publicKeyAlgorithm = '';
@@ -103,10 +103,11 @@
                     var publicKeyKeylengthAsString = followingLine.substring(followingLine.indexOf('(')+1, followingLine.indexOf(' bit)'));
                     publicKeyLength = parseInt(publicKeyKeylengthAsString);
 
-                    console.log(domain, '✔︎ Public Key:', publicKeyAlgorithm, publicKeyLength);
+                    console.log(domain, '✔︎'.green, 'Public Key:', publicKeyAlgorithm, publicKeyLength);
 
                     // add cert informations
                     // TODO: remove the ifs by monads http://blog.osteele.com/posts/2007/12/cheap-monads/
+                    scan.certificate = {};
                     if (result.document.ssltest[0].certificate[0].altnames)
                         scan.certificate.altnames = result.document.ssltest[0].certificate[0].altnames[0];
                     scan.certificate.expired = result.document.ssltest[0].certificate[0].expired[0];
@@ -119,7 +120,8 @@
                     scan.certificate.subject = result.document.ssltest[0].certificate[0].subject[0];
 
                     // collect all the ciphers suites
-                    console.log(domain ,"✔︎ found ", result.document.ssltest[0].cipher.length, " ciphers");
+                    console.log(domain, '✔︎'.green, 'ciphers found:', result.document.ssltest[0].cipher.length);
+                    scan.ciphers = [];
                     for (var i = 0; i < result.document.ssltest[0].cipher.length; i++) {
                         var cipher = result.document.ssltest[0].cipher[i].$;
 
@@ -144,9 +146,9 @@
                     // insert the new scan into DB
                     scans.insert(scan, function(err, doc){
                         if (err) {
-                            console.log("Error while inserting the new Scan", err);
+                            console.log('Error while inserting the new Scan', err);
                         } else {
-                            console.log(domain, "✔︎ new scan successfully inserted in DB", doc.insertedIds);
+                            console.log(domain, '✔︎'.green, 'Scan inserted in DB', doc.insertedIds[0]);
                         }
                     });
 
@@ -161,22 +163,22 @@
                         },
                         function(err, results) {
                             if (err) {
-                                console.log(domain, "Error while removing WIP flag", err);
+                                console.log(domain, 'Error while removing WIP flag', err);
                             } else {
-                                console.log(domain, "✔︎ WIP flag succesfully removed");
+                                console.log(domain, '✔︎'.green, 'WIP flag succesfully removed');
                             }
                         }
                     );
-
-                    // delete the from SSLScan generated xml file
-                    child_process.execSync(util.format("rm -f %s", xmlFileName), { encoding: 'utf8' });
-
-                    // delete the downloaded certificate
-                    child_process.execSync(util.format("rm -f %s", pemFileName), { encoding: 'utf8' });
                 });
             } catch (e) {
-                console.log(domain, "𝗫 JSERR", JSON.stringify(e).substring(0,100));
+                console.log(domain, 'X JSERR', JSON.stringify(e).substring(0,100));
             } finally {
+                // delete the from SSLScan generated xml file
+                child_process.execSync(util.format('rm -f %s', xmlFileName), { encoding: 'utf8' });
+
+                // delete the downloaded certificate
+                child_process.execSync(util.format('rm -f %s', pemFileName), { encoding: 'utf8' });
+
                 // work on the next document
                 workOnNextDomain(db);
             }
