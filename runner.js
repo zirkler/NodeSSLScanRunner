@@ -24,12 +24,11 @@
             child_process.execSync('mkdir -p tmp', { encoding: 'utf8' });
             domains = db.collection('domains');
             scans = db.collection('scans');
-
-            getADomainAndStartWork(db);
+            workOnNextDomain(db);
         }
     });
 
-    var getADomainAndStartWork = function(db) {
+    var workOnNextDomain = function(db) {
         // receive a domain from mongoDB
         var line = 'google.de';
         domains.findOne({wip: false}, {sort: "lastScanDate"}, function(err, document) {
@@ -42,26 +41,28 @@
                     $set: { wip: true },
                 },
                 function(err, results) {
-                    // now start the work on this domain
-                    workOnDomain(document.domain, db);
+                    // now start the scan on this domain
+                    scan(document.domain, db);
                 }
             );
         });
     };
 
-    var workOnDomain = function(domain, db) {
+    var scan = function(domain, db) {
         var xmlFileName = util.format('tmp/%s.xml', domain);
         var pemFileName = util.format('tmp/%s.pem', domain);
         var sslScanCmd = './sslscan';
         var sslScanArgs = util.format('--no-heartbleed --xml=%s %s', xmlFileName, domain);
 
         // execute SSLScan
-        console.log("running SSLScan for ", domain);
+        console.log(domain, "\n➡ running SSLScan for ", domain);
         var output = exec('./sslscan', ['--no-heartbleed', util.format('--xml=%s', xmlFileName), domain], { encoding: 'utf8' });
 
         if (output.stderr.length > 0) {
             // SSLScan executed with errors errors
-            console.log("SSLScan had problems on this url:", domain, output.stderr);
+            // TODO: write to error in some way to DB
+            console.log(domain, "𝗫 SSLScan had problems on this url:", output.stderr);
+            workOnNextDomain(db);
         } else {
             // SSLScan executed without errors
             try {
@@ -76,6 +77,7 @@
                         date: new Date(),
                         domain: domain,
                         ciphers: [],
+                        certificate: {}
                     };
 
                     // get some more certificate information via OpenSLL
@@ -83,7 +85,7 @@
                     var publicKeyLength = 0;
 
                     // receive certificate
-                    var receiveCertCmd = util.format('openssl s_client -showcerts -connect %s:443 </dev/null 2>/dev/null | openssl x509 -outform PEM > %s', domain, pemFileName);
+                    var receiveCertCmd = util.format('openssl s_client -connect %s:443 </dev/null 2>/dev/null | openssl x509 -outform PEM > %s', domain, pemFileName);
                     child_process.execSync(receiveCertCmd, { encoding: 'utf8' });
 
                     // view the cert with x509
@@ -101,7 +103,7 @@
                     var publicKeyKeylengthAsString = followingLine.substring(followingLine.indexOf('(')+1, followingLine.indexOf(' bit)'));
                     publicKeyLength = parseInt(publicKeyKeylengthAsString);
 
-                    console.log('... Public Key:', publicKeyAlgorithm, publicKeyLength);
+                    console.log(domain, '✔︎ Public Key:', publicKeyAlgorithm, publicKeyLength);
 
                     // add cert informations
                     // TODO: remove the ifs by monads http://blog.osteele.com/posts/2007/12/cheap-monads/
@@ -117,7 +119,7 @@
                     scan.certificate.subject = result.document.ssltest[0].certificate[0].subject[0];
 
                     // collect all the ciphers suites
-                    console.log("... found ", result.document.ssltest[0].cipher.length, " ciphers");
+                    console.log(domain ,"✔︎ found ", result.document.ssltest[0].cipher.length, " ciphers");
                     for (var i = 0; i < result.document.ssltest[0].cipher.length; i++) {
                         var cipher = result.document.ssltest[0].cipher[i].$;
 
@@ -144,7 +146,7 @@
                         if (err) {
                             console.log("Error while inserting the new Scan", err);
                         } else {
-                            console.log("... new scan successfully inserted in DB", doc.insertedIds);
+                            console.log(domain, "✔︎ new scan successfully inserted in DB", doc.insertedIds);
                         }
                     });
 
@@ -159,9 +161,9 @@
                         },
                         function(err, results) {
                             if (err) {
-                                console.log("Error while removing WIP flag", err);
+                                console.log(domain, "Error while removing WIP flag", err);
                             } else {
-                                console.log("... WIP flag succesfully removed");
+                                console.log(domain, "✔︎ WIP flag succesfully removed");
                             }
                         }
                     );
@@ -173,10 +175,10 @@
                     child_process.execSync(util.format("rm -f %s", pemFileName), { encoding: 'utf8' });
                 });
             } catch (e) {
-                console.log("JSERR at Domain ", domain, e);
+                console.log(domain, "𝗫 JSERR", JSON.stringify(e).substring(0,100));
             } finally {
                 // work on the next document
-                getADomainAndStartWork(db);
+                workOnNextDomain(db);
             }
         }
     };
