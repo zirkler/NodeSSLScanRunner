@@ -55,7 +55,7 @@
         var sslScanArgs = util.format('--no-heartbleed --xml=%s %s', xmlFileName, domain);
 
         // execute SSLScan
-        console.log(domain, "\n➡ running SSLScan for ", domain);
+        console.log('\n', domain, "➡ starting SSLScan");
         var output = exec('./sslscan', ['--no-heartbleed', util.format('--xml=%s', xmlFileName), domain], { encoding: 'utf8' });
 
         if (output.stderr.length > 0) {
