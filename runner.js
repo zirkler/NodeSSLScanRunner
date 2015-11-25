@@ -169,10 +169,10 @@
     var insertScan = function(scan, cb) {
         scans.insert(scan, function(err, doc){
             if (err) {
-                console.log('Error while inserting the new Scan', err);
+                console.log(scan.domain, 'X'.red, 'Error while inserting the new Scan', err);
                 if (cb) cb(err);
             } else {
-                console.log(domain, '✔︎'.green, 'Scan inserted in DB', doc.insertedIds[0]);
+                console.log(scan.domain, '✔︎'.green, 'Scan inserted in DB', doc.insertedIds[0]);
                 if (cb) cb();
             }
         });
@@ -189,7 +189,7 @@
             },
             function(err, results) {
                 if (err) {
-                    console.log(domain, 'Error while removing WIP flag', err);
+                    console.log(domain, 'X'.red, 'Error while removing WIP flag', err);
                     if (cb) cb(err);
                 } else {
                     console.log(domain, '✔︎'.green, 'WIP flag succesfully removed');
