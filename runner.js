@@ -31,7 +31,7 @@
 
     var workOnNextDomain = function(db) {
         // receive a domain from mongoDB
-        domains.findOne({wip: false}, {sort: 'lastScanDate'}, function(err, document) {
+        domains.findOne({wip: false}, {sort: {lastScanDate: 1}}, function(err, document) {
             if (err) console.log(Date(), err);
 
             // mark this domain as WIP
@@ -42,6 +42,7 @@
                 },
                 function(err, results) {
                     // now start the scan on this domain
+                    if (err) console.log('WIP ERR:', err);
                     scan(document.domain, db, document.source);
                 }
             );
@@ -146,10 +147,6 @@
 
                     // insert the new scan into DB
                     insertScan(scan);
-
-                    // remove WIP flag and move to next domain
-                    removeWIPFlag(domain);
-
                 });
             } catch (e) {
                 console.log(Date(), domain, 'X JSERR', JSON.stringify(e).substring(0,100));
@@ -159,6 +156,9 @@
 
                 // delete the downloaded certificate
                 child_process.execSync(util.format('rm -f %s', pemFileName), { encoding: 'utf8' });
+
+                // remove WIP flag and move to next domain
+                removeWIPFlag(domain);
 
                 // work on the next document
                 workOnNextDomain(db);
