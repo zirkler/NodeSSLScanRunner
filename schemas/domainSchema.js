@@ -6,8 +6,11 @@
     // create mongodb schema for our news
     var domainSchema = new mongoose.Schema({
         domain: String,
+        sources: [String],
         lastScanDate: Date,
-        wip: Boolean
+        inserted: Date,
+        wip: Boolean,
+        scanCounter: Number
     }, {
         toObject: { virtuals: true },
         toJSON: { virtuals: true }

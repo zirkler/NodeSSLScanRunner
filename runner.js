@@ -9,11 +9,14 @@
     var colors = require('colors');
     var mongoose = require('mongoose');
     var cipherInfo = require('./mapCiphers');
-    var Scan = require('./schemas/scanSchema');
     var child_process = require('child_process');
     var exec = require('child_process').spawnSync;
     var MongoClient = require('mongodb').MongoClient;
     var spawn = require('child-process-promise').spawn;
+
+
+    var Scan = require('./schemas/scanSchema');
+    var Domain = require('./schemas/domainSchema');
 
     var db;
     var scans; // the scans collection
@@ -35,57 +38,58 @@
                 if (err) throw err;
 
                 // start the work
-                workOnNextDomain(db);
+                /*
+                for (var i = 1; i < 5; i++) {
+                    setTimeout(function(){
 
+                    }, 4000*i);
+                }
+                */
+
+                workOnNextDomain(db);
             });
         }
     });
 
-
-
-
     var workOnNextDomain = function(db, workerid) {
         // receive a domain from mongoDB
         console.log(Date(), 'looking for next domain...'.yellow);
-        domains.findOne({wip: false}, {sort: {lastScanDate: 1}}, function(err, document) {
-            if (err) console.log(Date(), err);
-            console.log(Date(), document.domain, '✔︎'.green, 'domain received');
 
-            // mark this domain as WIP
-            domains.updateOne(
-                { domain : document.domain },
-                {
-                    $set: { wip: true },
-                },
-                function(err, results) {
-                    // now start the scan on this domain
-                    console.log(Date(), document.domain, '✔︎'.green, 'WIP flag set');
-                    scan(document.domain, db, document.source);
-                }
-            );
+        // find a domain on which no one is working
+        Domain.findOne({wip: false}).sort({lastScanDate: 1}).then(function(domain){
+            console.log(Date(), domain.domain, '✔︎'.green, 'domain received');
+
+            // set the wip flag and lastScanDate, then start the scanning
+            domain.wip = true;
+            domain.lastScanDate = Date();
+            domain.save().then(function(rDomain){
+                console.log(Date(), domain.domain, '✔︎'.green, 'WIP flag set');
+
+                // start the actual scanning
+                scan(domain, db, domain.source);
+            });
         });
     };
 
     var scan = function(domain, db, source) {
-        domain = 'google.de';
         var scan = new Scan();
-        var xmlFileName = util.format('tmp/%s.xml', domain);
-        var pemFileName = util.format('tmp/%s.pem', domain);
+        var xmlFileName = util.format('tmp/%s.xml', domain.domain);
+        var pemFileName = util.format('tmp/%s.pem', domain.domain);
         var sslScanCmd = './sslscan';
-        var sslScanArgs = util.format('--no-heartbleed --xml=%s %s', xmlFileName, domain);
+        var sslScanArgs = util.format('--no-heartbleed --xml=%s %s', xmlFileName, domain.domain);
 
         // setup the scan object
-        scan.domain = domain;
+        scan.domain = domain.domain;
         scan.source = source;
         scan.scanDate = new Date();
 
         // execute SSLScan
-        console.log(Date(), domain, '➡ starting SSLScan'.yellow);
-        spawn('./sslscan', ['--no-colour', '--no-heartbleed', util.format('--xml=%s', xmlFileName), domain], {capture: [ 'stdout', 'stderr' ], encoding: 'utf8'})
+        console.log(Date(), domain.domain, '➡ starting SSLScan'.yellow);
+        spawn('./sslscan', ['--no-colour', '--no-heartbleed', util.format('--xml=%s', xmlFileName), domain.domain], {capture: [ 'stdout', 'stderr' ], encoding: 'utf8'})
         .then(function (result) {
             if (result.stderr.length > 0) {
                 // SSLScan executed with errors errors
-                console.log(Date(), domain, 'X SSLScan had problems on this url:'.red, result.stderr);
+                console.log(Date(), domain.domain, 'X SSLScan had problems on this url:'.red, result.stderr);
                 scan.scanError = true;
                 scan.scanErrorText = result.stderr;
                 insertScan(scan);
@@ -102,8 +106,9 @@
                         var publicKeyAlgorithm = '';
                         var publicKeyLength = 0;
 
+                        // TODO: this whole open ssl thing needs some error handling and async
                         // receive certificate
-                        var receiveCertCmd = util.format('openssl s_client -connect %s:443 </dev/null 2>/dev/null | openssl x509 -outform PEM > %s', domain, pemFileName);
+                        var receiveCertCmd = util.format('openssl s_client -connect %s:443 </dev/null 2>/dev/null | openssl x509 -outform PEM > %s', domain.domain, pemFileName);
                         child_process.execSync(receiveCertCmd, { encoding: 'utf8' });
 
                         // view the cert with x509
@@ -121,7 +126,7 @@
                         var publicKeyKeylengthAsString = followingLine.substring(followingLine.indexOf('(')+1, followingLine.indexOf(' bit)'));
                         publicKeyLength = parseInt(publicKeyKeylengthAsString);
 
-                        console.log(Date(), domain, '✔︎'.green, 'Public Key:', publicKeyAlgorithm, publicKeyLength);
+                        console.log(Date(), domain.domain, '✔︎'.green, 'Public Key:', publicKeyAlgorithm, publicKeyLength);
 
                         // add cert informations
                         // TODO: maybe remove the if by monads http://blog.osteele.com/posts/2007/12/cheap-monads/
@@ -130,6 +135,7 @@
                             scan.certificate.altnames = result.document.ssltest[0].certificate[0].altnames[0];
                         scan.certificate.expired            = result.document.ssltest[0].certificate[0].expired[0];
                         scan.certificate.issuer             = result.document.ssltest[0].certificate[0].issuer[0];
+                        scan.certificate.selfSigned         = result.document.ssltest[0].certificate[0]['self-signed'][0];
                         scan.certificate.notValidAfter      = result.document.ssltest[0].certificate[0]['not-valid-after'][0];
                         scan.certificate.notValidBefore     = result.document.ssltest[0].certificate[0]['not-valid-before'][0];
                         scan.certificate.signatureAlgorithm = result.document.ssltest[0].certificate[0]['signature-algorithm'][0];
@@ -138,13 +144,14 @@
                         scan.certificate.subject            = result.document.ssltest[0].certificate[0].subject[0];
 
                         // collect all the ciphers suites
-                        console.log(Date(), domain, '✔︎'.green, 'ciphers found:', result.document.ssltest[0].cipher.length);
+                        console.log(Date(), domain.domain, '✔︎'.green, 'ciphers found:', result.document.ssltest[0].cipher.length);
                         scan.ciphers = [];
                         for (var i = 0; i < result.document.ssltest[0].cipher.length; i++) {
                             var cipher = {};
                             cipher.cipher      = result.document.ssltest[0].cipher[i].$.cipher;
                             cipher.protocol    = result.document.ssltest[0].cipher[i].$.sslversion;
                             cipher.status      = result.document.ssltest[0].cipher[i].$.status;
+                            cipher.curve       = result.document.ssltest[0].cipher[i].$.curve;
                             cipher.bits = parseInt(result.document.ssltest[0].cipher[i].$.bits);
 
                             // read key exchange strenght
@@ -179,7 +186,7 @@
                         insertScan(scan);
                     });
                 } catch (e) {
-                    console.log(Date(), domain, 'X JSERR', JSON.stringify(e).substring(0,100));
+                    console.log(Date(), domain.domain, 'X JSERR', JSON.stringify(e).substring(0,100));
                 } finally {
                     // delete the from SSLScan generated xml file
                     child_process.execSync(util.format('rm -f %s', xmlFileName), { encoding: 'utf8' });
@@ -188,7 +195,8 @@
                     child_process.execSync(util.format('rm -f %s', pemFileName), { encoding: 'utf8' });
 
                     // remove WIP flag and move to next domain
-                    removeWIPFlag(domain);
+                    scan.wip = false;
+                    scan.save();
 
                     // work on the next document
                     workOnNextDomain(db);
@@ -197,31 +205,11 @@
         });
     };
 
+    // TODO: move this to a mongoose schema method
     var insertScan = function(scan, cb) {
         scan.save(function (err, rScan) {
             if (err) return console.log(Date(), scan.domain, 'X'.red, 'Error while inserting the new Scan', err);
             console.log(Date(), scan.domain, '✔︎'.green, 'Scan inserted in DB', rScan.id);
         });
-    };
-
-    var removeWIPFlag = function(domain, cb) {
-        domains.updateOne(
-            { domain : domain },
-            {
-                $set: {
-                    wip: false,
-                    lastScanDate: new Date()
-                },
-            },
-            function(err, results) {
-                if (err) {
-                    console.log(Date(), domain, 'X'.red, 'Error while removing WIP flag', err);
-                    if (cb) cb(err);
-                } else {
-                    console.log(Date(), domain, '✔︎'.green, 'WIP flag succesfully removed');
-                    if (cb) cb();
-                }
-            }
-        );
     };
 }());

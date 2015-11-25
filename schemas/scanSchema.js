@@ -14,6 +14,7 @@
         certificate: {
             expired: Boolean,
             issuer: String,
+            selfSigned: Boolean,
             notValidAfter: Date,
             notValidBefore: Date,
             signatureAlgorithm: String,
