@@ -77,7 +77,7 @@
                 // SSLScan executed with errors errors
                 console.log(Date(), domain.domain, 'X SSLScan had problems on this url:'.red, result.stderr);
                 scan.scanError = true;
-                scan.scanErrorText = result.stderr;
+                scan.scanErrorMessage = result.stderr;
                 insertScan(scan);
                 workOnNextDomain();
             } else {
@@ -139,6 +139,7 @@
                             cipher.status      = result.document.ssltest[0].cipher[i].$.status;
                             cipher.curve       = result.document.ssltest[0].cipher[i].$.curve;
                             cipher.bits = parseInt(result.document.ssltest[0].cipher[i].$.bits);
+                            cipher.bits        = parseInt(result.document.ssltest[0].cipher[i].$.bits);
 
                             // read key exchange strenght
                             if (result.document.ssltest[0].cipher[i].$.ecdhbits) {
