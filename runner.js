@@ -14,44 +14,30 @@
     var MongoClient = require('mongodb').MongoClient;
     var spawn = require('child-process-promise').spawn;
 
-
     var Scan = require('./schemas/scanSchema');
     var Domain = require('./schemas/domainSchema');
 
-    var db;
-    var scans; // the scans collection
-    var domains; // the domains collection
     var parser = new xml2js.Parser();
 
+    // here we are going to save our temporary files
+    child_process.execSync('mkdir -p tmp', { encoding: 'utf8' });
 
+    mongoose.connect('mongodb://localhost:27017/czTls', function(err) {
+        if (err) throw err;
 
-    // connect to mongodb
-    MongoClient.connect('mongodb://localhost:27017/czTls', function(err, db) {
-        if (!err) {
-            // here we are going to save our temporary files
-            child_process.execSync('mkdir -p tmp', { encoding: 'utf8' });
-            domains = db.collection('domains');
-            scans = db.collection('scans');
-            db = db;
-
-            mongoose.connect('mongodb://localhost:27017/czTls', function(err) {
-                if (err) throw err;
-
-                // start the work
-                /*
-                for (var i = 1; i < 5; i++) {
-                    setTimeout(function(){
-
-                    }, 4000*i);
-                }
-                */
-
+        // start the work
+        /*
+        for (var i = 1; i < 5; i++) {
+            setTimeout(function(){
                 workOnNextDomain(db);
-            });
+            }, 100*i);
         }
+        */
+
+        workOnNextDomain(db);
     });
 
-    var workOnNextDomain = function(db, workerid) {
+    var workOnNextDomain = function() {
         // receive a domain from mongoDB
         console.log(Date(), 'looking for next domain...'.yellow);
 
@@ -66,12 +52,12 @@
                 console.log(Date(), domain.domain, '✔︎'.green, 'WIP flag set');
 
                 // start the actual scanning
-                scan(domain, db, domain.source);
+                scan(domain);
             });
         });
     };
 
-    var scan = function(domain, db, source) {
+    var scan = function(domain) {
         var scan = new Scan();
         var xmlFileName = util.format('tmp/%s.xml', domain.domain);
         var pemFileName = util.format('tmp/%s.pem', domain.domain);
@@ -80,7 +66,7 @@
 
         // setup the scan object
         scan.domain = domain.domain;
-        scan.source = source;
+        scan.source = domain.sources;
         scan.scanDate = new Date();
 
         // execute SSLScan
@@ -93,7 +79,7 @@
                 scan.scanError = true;
                 scan.scanErrorText = result.stderr;
                 insertScan(scan);
-                workOnNextDomain(db);
+                workOnNextDomain();
             } else {
                 // SSLScan executed without errors
                 try {
@@ -199,7 +185,7 @@
                     scan.save();
 
                     // work on the next document
-                    workOnNextDomain(db);
+                    workOnNextDomain();
                 }
             }
         });
