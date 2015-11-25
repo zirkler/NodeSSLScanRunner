@@ -55,7 +55,7 @@
         var sslScanArgs = util.format('--no-heartbleed --xml=%s %s', xmlFileName, domain);
 
         // execute SSLScan
-        console.log(Date());
+        console.log();
         console.log(Date(), domain, '➡ starting SSLScan'.yellow);
         var output = exec('./sslscan', ['--no-colour', '--no-heartbleed', util.format('--xml=%s', xmlFileName), domain], { encoding: 'utf8' });
 
