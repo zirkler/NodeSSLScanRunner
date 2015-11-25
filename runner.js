@@ -34,11 +34,10 @@
 
     var workOnNextDomain = function(db, workerid) {
         // receive a domain from mongoDB
-        console.log();
         console.log(Date(), 'looking for next domain...'.yellow);
         domains.findOne({wip: false}, {sort: {lastScanDate: 1}}, function(err, document) {
             if (err) console.log(Date(), err);
-            console.log(Date(), document, '✔︎'.green, 'domain received');
+            console.log(Date(), document.domain, '✔︎'.green, 'domain received');
 
             // mark this domain as WIP
             domains.updateOne(
