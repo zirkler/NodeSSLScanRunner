@@ -29,12 +29,12 @@
         /*
         for (var i = 1; i < 5; i++) {
             setTimeout(function(){
-                workOnNextDomain(db);
+                workOnNextDomain();
             }, 100*i);
         }
         */
 
-        workOnNextDomain(db);
+        workOnNextDomain();
     });
 
     var workOnNextDomain = function() {
