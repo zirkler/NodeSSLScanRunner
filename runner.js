@@ -13,6 +13,7 @@
     var cipherInfo = require('./mapCiphers');
     var colors = require('colors');
 
+    var db;
     var domains; // the domains collection
     var scans; // the scans collection
 
@@ -23,6 +24,7 @@
             child_process.execSync('mkdir -p tmp', { encoding: 'utf8' });
             domains = db.collection('domains');
             scans = db.collection('scans');
+            db = db;
             workOnNextDomain(db);
         }
     });
@@ -66,11 +68,10 @@
 
         if (output.stderr.length > 0) {
             // SSLScan executed with errors errors
-            // TODO: write to error in some way to DB
             console.log(domain, 'X SSLScan had problems on this url:'.red, output.stderr);
             scan.error = true;
             scan.errorText = output.stderr;
-            scans.insert(scan);
+            insertScan(scan);
             workOnNextDomain(db);
         } else {
             // SSLScan executed without errors
@@ -106,7 +107,7 @@
                     console.log(domain, '✔︎'.green, 'Public Key:', publicKeyAlgorithm, publicKeyLength);
 
                     // add cert informations
-                    // TODO: remove the ifs by monads http://blog.osteele.com/posts/2007/12/cheap-monads/
+                    // TODO: maybe remove the if by monads http://blog.osteele.com/posts/2007/12/cheap-monads/
                     scan.certificate = {};
                     if (result.document.ssltest[0].certificate[0].altnames)
                         scan.certificate.altnames = result.document.ssltest[0].certificate[0].altnames[0];
@@ -144,31 +145,11 @@
                     }
 
                     // insert the new scan into DB
-                    scans.insert(scan, function(err, doc){
-                        if (err) {
-                            console.log('Error while inserting the new Scan', err);
-                        } else {
-                            console.log(domain, '✔︎'.green, 'Scan inserted in DB', doc.insertedIds[0]);
-                        }
-                    });
+                    insertScan(scan);
 
                     // remove WIP flag and move to next domain
-                    domains.updateOne(
-                        { domain : domain },
-                        {
-                            $set: {
-                                wip: false,
-                                lastScanDate: new Date()
-                            },
-                        },
-                        function(err, results) {
-                            if (err) {
-                                console.log(domain, 'Error while removing WIP flag', err);
-                            } else {
-                                console.log(domain, '✔︎'.green, 'WIP flag succesfully removed');
-                            }
-                        }
-                    );
+                    removeWIPFlag(domain);
+
                 });
             } catch (e) {
                 console.log(domain, 'X JSERR', JSON.stringify(e).substring(0,100));
@@ -183,5 +164,38 @@
                 workOnNextDomain(db);
             }
         }
+    };
+
+    var insertScan = function(scan, cb) {
+        scans.insert(scan, function(err, doc){
+            if (err) {
+                console.log('Error while inserting the new Scan', err);
+                if (cb) cb(err);
+            } else {
+                console.log(domain, '✔︎'.green, 'Scan inserted in DB', doc.insertedIds[0]);
+                if (cb) cb();
+            }
+        });
+    };
+
+    var removeWIPFlag = function(domain, cb) {
+        domains.updateOne(
+            { domain : domain },
+            {
+                $set: {
+                    wip: false,
+                    lastScanDate: new Date()
+                },
+            },
+            function(err, results) {
+                if (err) {
+                    console.log(domain, 'Error while removing WIP flag', err);
+                    if (cb) cb(err);
+                } else {
+                    console.log(domain, '✔︎'.green, 'WIP flag succesfully removed');
+                    if (cb) cb();
+                }
+            }
+        );
     };
 }());
