@@ -75,8 +75,8 @@
             if (result.stderr.length > 0) {
                 // SSLScan executed with errors errors
                 console.log(Date(), domain, 'X SSLScan had problems on this url:'.red, result.stderr);
-                scan.error = true;
-                scan.errorText = result.stderr;
+                scan.scanError = true;
+                scan.scanErrorText = result.stderr;
                 insertScan(scan);
                 workOnNextDomain(db);
             } else {
@@ -117,36 +117,49 @@
                         scan.certificate = {};
                         if (result.document.ssltest[0].certificate[0].altnames)
                             scan.certificate.altnames = result.document.ssltest[0].certificate[0].altnames[0];
-                        scan.certificate.expired = result.document.ssltest[0].certificate[0].expired[0];
-                        scan.certificate.issuer = result.document.ssltest[0].certificate[0].issuer[0];
-                        scan.certificate.notValidAfter = result.document.ssltest[0].certificate[0]['not-valid-after'][0];
-                        scan.certificate.notValidBefore = result.document.ssltest[0].certificate[0]['not-valid-before'][0];
+                        scan.certificate.expired            = result.document.ssltest[0].certificate[0].expired[0];
+                        scan.certificate.issuer             = result.document.ssltest[0].certificate[0].issuer[0];
+                        scan.certificate.notValidAfter      = result.document.ssltest[0].certificate[0]['not-valid-after'][0];
+                        scan.certificate.notValidBefore     = result.document.ssltest[0].certificate[0]['not-valid-before'][0];
                         scan.certificate.signatureAlgorithm = result.document.ssltest[0].certificate[0]['signature-algorithm'][0];
                         scan.certificate.publicKeyAlgorithm = publicKeyAlgorithm;
-                        scan.certificate.publicKeyLength = publicKeyLength;
-                        scan.certificate.subject = result.document.ssltest[0].certificate[0].subject[0];
+                        scan.certificate.publicKeyLength    = publicKeyLength;
+                        scan.certificate.subject            = result.document.ssltest[0].certificate[0].subject[0];
 
                         // collect all the ciphers suites
                         console.log(Date(), domain, '✔︎'.green, 'ciphers found:', result.document.ssltest[0].cipher.length);
                         scan.ciphers = [];
                         for (var i = 0; i < result.document.ssltest[0].cipher.length; i++) {
-                            var cipher = result.document.ssltest[0].cipher[i].$;
+                            var cipher = {};
+                            cipher.cipher      = result.document.ssltest[0].cipher[i].$.cipher;
+                            cipher.protocol    = result.document.ssltest[0].cipher[i].$.sslversion;
+                            cipher.status      = result.document.ssltest[0].cipher[i].$.status;
+                            cipher.encStrenght = parseInt(result.document.ssltest[0].cipher[i].$.bits);
 
-                            cipher.protocol = cipher.sslversion;
-                            delete cipher.sslversion;
+                            // read key exchange strenght
+                            if (result.document.ssltest[0].cipher[i].$.ecdhbits) {
+                                // when ECDH is used as key exchange
+                                cipher.kxStrenght = parseInt(result.document.ssltest[0].cipher[i].$.ecdhbits);
+                            } else if (result.document.ssltest[0].cipher[i].$.dhebits) {
+                                // when DHE is used as key exchange
+                                cipher.kxStrenght = parseInt(result.document.ssltest[0].cipher[i].$.dhebits);
+                            } else {
+                                // when neither ECDH nor DHE is used, its RSA and this means
+                                // the client use the servers public key for key exchange
+                                cipher.kxStrenght = scan.certificate.publicKeyLength;
+                            }
 
                             // get some additional cipher info (actualy its informations from the tls specs)
                             var additionalCipherInfo = cipherInfo.getCipherInfos(cipher.cipher);
                             if (additionalCipherInfo) {
                                 cipher.kx = additionalCipherInfo.kx;
-                                cipher.kxStrenght = scan.certificate.publicKeyLength;
-                                if (cipher.ecdhebits) { cipher.kxStrenght = cipher.ecdhebits; delete cipher.ecdhebits; }
-                                if (cipher.dhebits) { cipher.kxStrenght = cipher.dhebits; delete cipher.dhebits; }
                                 cipher.au = additionalCipherInfo.au;
                                 cipher.enc = additionalCipherInfo.enc;
                                 cipher.mac = additionalCipherInfo.mac;
                                 cipher.export = additionalCipherInfo.export;
                             }
+
+                            // push the cipher to the hosts ciphers array
                             scan.ciphers.push(cipher);
                         }
 
