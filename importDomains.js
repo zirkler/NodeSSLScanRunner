@@ -8,7 +8,8 @@
     var fs = require('fs');
     var MongoClient = require('mongodb').MongoClient;
 
-    var filename = "top-7k.txt";
+    var filename = "alexa-top-1m.txt";
+    var lastCount = 0; // just a helper for non power consuming ouput
 
     // connect to mongodb
     MongoClient.connect("mongodb://localhost:27017/czTls", function(err, db) {
@@ -50,7 +51,11 @@
                         function(err, results) {
                             if (err) console.log(err);
                             insertCounter++;
-                            console.log("insert counter:", insertCounter);
+                            if ((insertCounter - lastCount) > 1000) {
+                                console.log("insert counter:", insertCounter);
+                                lastCount = insertCounter;
+                            }
+
                             if (insertCounter === lineCounter) {
                                 // now we are done
                                 // close DB connection
