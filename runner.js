@@ -7,16 +7,20 @@
     var util = require('util');
     var xml2js = require('xml2js');
     var colors = require('colors');
+    var mongoose = require('mongoose');
     var cipherInfo = require('./mapCiphers');
+    var Scan = require('./schemas/scanSchema');
     var child_process = require('child_process');
     var exec = require('child_process').spawnSync;
     var MongoClient = require('mongodb').MongoClient;
     var spawn = require('child-process-promise').spawn;
 
-    var parser = new xml2js.Parser();
     var db;
-    var domains; // the domains collection
     var scans; // the scans collection
+    var domains; // the domains collection
+    var parser = new xml2js.Parser();
+
+
 
     // connect to mongodb
     MongoClient.connect('mongodb://localhost:27017/czTls', function(err, db) {
@@ -27,10 +31,18 @@
             scans = db.collection('scans');
             db = db;
 
-            // start the work
-            workOnNextDomain(db);
+            mongoose.connect('mongodb://localhost:27017/czTls', function(err) {
+                if (err) throw err;
+
+                // start the work
+                workOnNextDomain(db);
+
+            });
         }
     });
+
+
+
 
     var workOnNextDomain = function(db, workerid) {
         // receive a domain from mongoDB
@@ -55,21 +67,20 @@
     };
 
     var scan = function(domain, db, source) {
+        domain = 'google.de';
+        var scan = new Scan();
         var xmlFileName = util.format('tmp/%s.xml', domain);
         var pemFileName = util.format('tmp/%s.pem', domain);
         var sslScanCmd = './sslscan';
         var sslScanArgs = util.format('--no-heartbleed --xml=%s %s', xmlFileName, domain);
 
+        // setup the scan object
+        scan.domain = domain;
+        scan.source = source;
+        scan.scanDate = new Date();
+
         // execute SSLScan
         console.log(Date(), domain, '➡ starting SSLScan'.yellow);
-
-        // setup our scan object, we save this to the DB
-        var scan = {
-            source: source,
-            date: new Date(),
-            domain: domain
-        };
-
         spawn('./sslscan', ['--no-colour', '--no-heartbleed', util.format('--xml=%s', xmlFileName), domain], {capture: [ 'stdout', 'stderr' ], encoding: 'utf8'})
         .then(function (result) {
             if (result.stderr.length > 0) {
@@ -134,7 +145,7 @@
                             cipher.cipher      = result.document.ssltest[0].cipher[i].$.cipher;
                             cipher.protocol    = result.document.ssltest[0].cipher[i].$.sslversion;
                             cipher.status      = result.document.ssltest[0].cipher[i].$.status;
-                            cipher.encStrenght = parseInt(result.document.ssltest[0].cipher[i].$.bits);
+                            cipher.bits = parseInt(result.document.ssltest[0].cipher[i].$.bits);
 
                             // read key exchange strenght
                             if (result.document.ssltest[0].cipher[i].$.ecdhbits) {
@@ -164,6 +175,7 @@
                         }
 
                         // insert the new scan into DB
+                        scan.scanError = false;
                         insertScan(scan);
                     });
                 } catch (e) {
@@ -186,14 +198,9 @@
     };
 
     var insertScan = function(scan, cb) {
-        scans.insert(scan, function(err, doc){
-            if (err) {
-                console.log(Date(), scan.domain, 'X'.red, 'Error while inserting the new Scan', err);
-                if (cb) cb(err);
-            } else {
-                console.log(Date(), scan.domain, '✔︎'.green, 'Scan inserted in DB', doc.insertedIds[0]);
-                if (cb) cb();
-            }
+        scan.save(function (err, rScan) {
+            if (err) return console.log(Date(), scan.domain, 'X'.red, 'Error while inserting the new Scan', err);
+            console.log(Date(), scan.domain, '✔︎'.green, 'Scan inserted in DB', rScan.id);
         });
     };
 
