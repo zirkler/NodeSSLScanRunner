@@ -3,16 +3,17 @@
 (function () {
     'use strict';
 
+    var fs = require('fs');
     var util = require('util');
+    var xml2js = require('xml2js');
+    var colors = require('colors');
+    var cipherInfo = require('./mapCiphers');
     var child_process = require('child_process');
     var exec = require('child_process').spawnSync;
-    var xml2js = require('xml2js');
-    var parser = new xml2js.Parser();
-    var fs = require('fs');
     var MongoClient = require('mongodb').MongoClient;
-    var cipherInfo = require('./mapCiphers');
-    var colors = require('colors');
+    var spawn = require('child-process-promise').spawn;
 
+    var parser = new xml2js.Parser();
     var db;
     var domains; // the domains collection
     var scans; // the scans collection
@@ -25,14 +26,19 @@
             domains = db.collection('domains');
             scans = db.collection('scans');
             db = db;
+
+            // start the work
             workOnNextDomain(db);
         }
     });
 
-    var workOnNextDomain = function(db) {
+    var workOnNextDomain = function(db, workerid) {
         // receive a domain from mongoDB
+        console.log();
+        console.log(Date(), 'looking for next domain...'.yellow);
         domains.findOne({wip: false}, {sort: {lastScanDate: 1}}, function(err, document) {
             if (err) console.log(Date(), err);
+            console.log(Date(), document, '✔︎'.green, 'domain received');
 
             // mark this domain as WIP
             domains.updateOne(
@@ -42,7 +48,7 @@
                 },
                 function(err, results) {
                     // now start the scan on this domain
-                    if (err) console.log('WIP ERR:', err);
+                    console.log(Date(), document.domain, '✔︎'.green, 'WIP flag set');
                     scan(document.domain, db, document.source);
                 }
             );
@@ -56,9 +62,7 @@
         var sslScanArgs = util.format('--no-heartbleed --xml=%s %s', xmlFileName, domain);
 
         // execute SSLScan
-        console.log();
         console.log(Date(), domain, '➡ starting SSLScan'.yellow);
-        var output = exec('./sslscan', ['--no-colour', '--no-heartbleed', util.format('--xml=%s', xmlFileName), domain], { encoding: 'utf8' });
 
         // setup our scan object, we save this to the DB
         var scan = {
@@ -67,103 +71,106 @@
             domain: domain
         };
 
-        if (output.stderr.length > 0) {
-            // SSLScan executed with errors errors
-            console.log(Date(), domain, 'X SSLScan had problems on this url:'.red, output.stderr);
-            scan.error = true;
-            scan.errorText = output.stderr;
-            insertScan(scan);
-            workOnNextDomain(db);
-        } else {
-            // SSLScan executed without errors
-            try {
-                // read the xml and parse it to json
-                var xmlFile = fs.readFileSync(xmlFileName, 'utf8');
-                parser.parseString(xmlFile, function(err, result) {
-                    if (err) console.log(Date(), 'parseErr', err);
-
-                    // get some more certificate information via OpenSLL
-                    var publicKeyAlgorithm = '';
-                    var publicKeyLength = 0;
-
-                    // receive certificate
-                    var receiveCertCmd = util.format('openssl s_client -connect %s:443 </dev/null 2>/dev/null | openssl x509 -outform PEM > %s', domain, pemFileName);
-                    child_process.execSync(receiveCertCmd, { encoding: 'utf8' });
-
-                    // view the cert with x509
-                    var readCertCmnd = util.format('openssl x509 -text -noout -in %s', pemFileName);
-                    var x509Output = child_process.execSync(readCertCmnd, { encoding: 'utf8' });
-
-                    // no wrestle through the x509 output and collect our data (algo & keylength)
-                    var algoPattern = 'Public Key Algorithm: ';
-                    var algoPos = x509Output.indexOf(algoPattern) + algoPattern.length;
-                    var lineEndPos = x509Output.indexOf('\n',algoPos);
-                    publicKeyAlgorithm = x509Output.substring(algoPos, lineEndPos);
-
-                    // no get the key size
-                    var followingLine = x509Output.substring(lineEndPos, x509Output.indexOf('\n',lineEndPos+1)).trim();
-                    var publicKeyKeylengthAsString = followingLine.substring(followingLine.indexOf('(')+1, followingLine.indexOf(' bit)'));
-                    publicKeyLength = parseInt(publicKeyKeylengthAsString);
-
-                    console.log(Date(), domain, '✔︎'.green, 'Public Key:', publicKeyAlgorithm, publicKeyLength);
-
-                    // add cert informations
-                    // TODO: maybe remove the if by monads http://blog.osteele.com/posts/2007/12/cheap-monads/
-                    scan.certificate = {};
-                    if (result.document.ssltest[0].certificate[0].altnames)
-                        scan.certificate.altnames = result.document.ssltest[0].certificate[0].altnames[0];
-                    scan.certificate.expired = result.document.ssltest[0].certificate[0].expired[0];
-                    scan.certificate.issuer = result.document.ssltest[0].certificate[0].issuer[0];
-                    scan.certificate.notValidAfter = result.document.ssltest[0].certificate[0]['not-valid-after'][0];
-                    scan.certificate.notValidBefore = result.document.ssltest[0].certificate[0]['not-valid-before'][0];
-                    scan.certificate.signatureAlgorithm = result.document.ssltest[0].certificate[0]['signature-algorithm'][0];
-                    scan.certificate.publicKeyAlgorithm = publicKeyAlgorithm;
-                    scan.certificate.publicKeyLength = publicKeyLength;
-                    scan.certificate.subject = result.document.ssltest[0].certificate[0].subject[0];
-
-                    // collect all the ciphers suites
-                    console.log(Date(), domain, '✔︎'.green, 'ciphers found:', result.document.ssltest[0].cipher.length);
-                    scan.ciphers = [];
-                    for (var i = 0; i < result.document.ssltest[0].cipher.length; i++) {
-                        var cipher = result.document.ssltest[0].cipher[i].$;
-
-                        cipher.protocol = cipher.sslversion;
-                        delete cipher.sslversion;
-
-                        // get some additional cipher info (actualy its informations from the tls specs)
-                        var additionalCipherInfo = cipherInfo.getCipherInfos(cipher.cipher);
-                        if (additionalCipherInfo) {
-                            cipher.kx = additionalCipherInfo.kx;
-                            cipher.kxStrenght = scan.certificate.publicKeyLength;
-                            if (cipher.ecdhebits) { cipher.kxStrenght = cipher.ecdhebits; delete cipher.ecdhebits; }
-                            if (cipher.dhebits) { cipher.kxStrenght = cipher.dhebits; delete cipher.dhebits; }
-                            cipher.au = additionalCipherInfo.au;
-                            cipher.enc = additionalCipherInfo.enc;
-                            cipher.mac = additionalCipherInfo.mac;
-                            cipher.export = additionalCipherInfo.export;
-                        }
-                        scan.ciphers.push(cipher);
-                    }
-
-                    // insert the new scan into DB
-                    insertScan(scan);
-                });
-            } catch (e) {
-                console.log(Date(), domain, 'X JSERR', JSON.stringify(e).substring(0,100));
-            } finally {
-                // delete the from SSLScan generated xml file
-                child_process.execSync(util.format('rm -f %s', xmlFileName), { encoding: 'utf8' });
-
-                // delete the downloaded certificate
-                child_process.execSync(util.format('rm -f %s', pemFileName), { encoding: 'utf8' });
-
-                // remove WIP flag and move to next domain
-                removeWIPFlag(domain);
-
-                // work on the next document
+        spawn('./sslscan', ['--no-colour', '--no-heartbleed', util.format('--xml=%s', xmlFileName), domain], {capture: [ 'stdout', 'stderr' ], encoding: 'utf8'})
+        .then(function (result) {
+            if (result.stderr.length > 0) {
+                // SSLScan executed with errors errors
+                console.log(Date(), domain, 'X SSLScan had problems on this url:'.red, result.stderr);
+                scan.error = true;
+                scan.errorText = result.stderr;
+                insertScan(scan);
                 workOnNextDomain(db);
+            } else {
+                // SSLScan executed without errors
+                try {
+                    // read the xml and parse it to json
+                    var xmlFile = fs.readFileSync(xmlFileName, 'utf8');
+                    parser.parseString(xmlFile, function(err, result) {
+                        if (err) console.log(Date(), 'parseErr', err);
+
+                        // get some more certificate information via OpenSLL
+                        var publicKeyAlgorithm = '';
+                        var publicKeyLength = 0;
+
+                        // receive certificate
+                        var receiveCertCmd = util.format('openssl s_client -connect %s:443 </dev/null 2>/dev/null | openssl x509 -outform PEM > %s', domain, pemFileName);
+                        child_process.execSync(receiveCertCmd, { encoding: 'utf8' });
+
+                        // view the cert with x509
+                        var readCertCmnd = util.format('openssl x509 -text -noout -in %s', pemFileName);
+                        var x509Output = child_process.execSync(readCertCmnd, { encoding: 'utf8' });
+
+                        // no wrestle through the x509 output and collect our data (algo & keylength)
+                        var algoPattern = 'Public Key Algorithm: ';
+                        var algoPos = x509Output.indexOf(algoPattern) + algoPattern.length;
+                        var lineEndPos = x509Output.indexOf('\n',algoPos);
+                        publicKeyAlgorithm = x509Output.substring(algoPos, lineEndPos);
+
+                        // no get the key size
+                        var followingLine = x509Output.substring(lineEndPos, x509Output.indexOf('\n',lineEndPos+1)).trim();
+                        var publicKeyKeylengthAsString = followingLine.substring(followingLine.indexOf('(')+1, followingLine.indexOf(' bit)'));
+                        publicKeyLength = parseInt(publicKeyKeylengthAsString);
+
+                        console.log(Date(), domain, '✔︎'.green, 'Public Key:', publicKeyAlgorithm, publicKeyLength);
+
+                        // add cert informations
+                        // TODO: maybe remove the if by monads http://blog.osteele.com/posts/2007/12/cheap-monads/
+                        scan.certificate = {};
+                        if (result.document.ssltest[0].certificate[0].altnames)
+                            scan.certificate.altnames = result.document.ssltest[0].certificate[0].altnames[0];
+                        scan.certificate.expired = result.document.ssltest[0].certificate[0].expired[0];
+                        scan.certificate.issuer = result.document.ssltest[0].certificate[0].issuer[0];
+                        scan.certificate.notValidAfter = result.document.ssltest[0].certificate[0]['not-valid-after'][0];
+                        scan.certificate.notValidBefore = result.document.ssltest[0].certificate[0]['not-valid-before'][0];
+                        scan.certificate.signatureAlgorithm = result.document.ssltest[0].certificate[0]['signature-algorithm'][0];
+                        scan.certificate.publicKeyAlgorithm = publicKeyAlgorithm;
+                        scan.certificate.publicKeyLength = publicKeyLength;
+                        scan.certificate.subject = result.document.ssltest[0].certificate[0].subject[0];
+
+                        // collect all the ciphers suites
+                        console.log(Date(), domain, '✔︎'.green, 'ciphers found:', result.document.ssltest[0].cipher.length);
+                        scan.ciphers = [];
+                        for (var i = 0; i < result.document.ssltest[0].cipher.length; i++) {
+                            var cipher = result.document.ssltest[0].cipher[i].$;
+
+                            cipher.protocol = cipher.sslversion;
+                            delete cipher.sslversion;
+
+                            // get some additional cipher info (actualy its informations from the tls specs)
+                            var additionalCipherInfo = cipherInfo.getCipherInfos(cipher.cipher);
+                            if (additionalCipherInfo) {
+                                cipher.kx = additionalCipherInfo.kx;
+                                cipher.kxStrenght = scan.certificate.publicKeyLength;
+                                if (cipher.ecdhebits) { cipher.kxStrenght = cipher.ecdhebits; delete cipher.ecdhebits; }
+                                if (cipher.dhebits) { cipher.kxStrenght = cipher.dhebits; delete cipher.dhebits; }
+                                cipher.au = additionalCipherInfo.au;
+                                cipher.enc = additionalCipherInfo.enc;
+                                cipher.mac = additionalCipherInfo.mac;
+                                cipher.export = additionalCipherInfo.export;
+                            }
+                            scan.ciphers.push(cipher);
+                        }
+
+                        // insert the new scan into DB
+                        insertScan(scan);
+                    });
+                } catch (e) {
+                    console.log(Date(), domain, 'X JSERR', JSON.stringify(e).substring(0,100));
+                } finally {
+                    // delete the from SSLScan generated xml file
+                    child_process.execSync(util.format('rm -f %s', xmlFileName), { encoding: 'utf8' });
+
+                    // delete the downloaded certificate
+                    child_process.execSync(util.format('rm -f %s', pemFileName), { encoding: 'utf8' });
+
+                    // remove WIP flag and move to next domain
+                    removeWIPFlag(domain);
+
+                    // work on the next document
+                    workOnNextDomain(db);
+                }
             }
-        }
+        });
     };
 
     var insertScan = function(scan, cb) {
