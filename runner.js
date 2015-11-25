@@ -32,7 +32,7 @@
     var workOnNextDomain = function(db) {
         // receive a domain from mongoDB
         domains.findOne({wip: false}, {sort: 'lastScanDate'}, function(err, document) {
-            if (err) console.log(err);
+            if (err) console.log(Date(), err);
 
             // mark this domain as WIP
             domains.updateOne(
@@ -55,8 +55,8 @@
         var sslScanArgs = util.format('--no-heartbleed --xml=%s %s', xmlFileName, domain);
 
         // execute SSLScan
-        console.log();
-        console.log(domain, '➡ starting SSLScan'.yellow);
+        console.log(Date());
+        console.log(Date(), domain, '➡ starting SSLScan'.yellow);
         var output = exec('./sslscan', ['--no-colour', '--no-heartbleed', util.format('--xml=%s', xmlFileName), domain], { encoding: 'utf8' });
 
         // setup our scan object, we save this to the DB
@@ -68,7 +68,7 @@
 
         if (output.stderr.length > 0) {
             // SSLScan executed with errors errors
-            console.log(domain, 'X SSLScan had problems on this url:'.red, output.stderr);
+            console.log(Date(), domain, 'X SSLScan had problems on this url:'.red, output.stderr);
             scan.error = true;
             scan.errorText = output.stderr;
             insertScan(scan);
@@ -79,7 +79,7 @@
                 // read the xml and parse it to json
                 var xmlFile = fs.readFileSync(xmlFileName, 'utf8');
                 parser.parseString(xmlFile, function(err, result) {
-                    if (err) console.log('parseErr', err);
+                    if (err) console.log(Date(), 'parseErr', err);
 
                     // get some more certificate information via OpenSLL
                     var publicKeyAlgorithm = '';
@@ -104,7 +104,7 @@
                     var publicKeyKeylengthAsString = followingLine.substring(followingLine.indexOf('(')+1, followingLine.indexOf(' bit)'));
                     publicKeyLength = parseInt(publicKeyKeylengthAsString);
 
-                    console.log(domain, '✔︎'.green, 'Public Key:', publicKeyAlgorithm, publicKeyLength);
+                    console.log(Date(), domain, '✔︎'.green, 'Public Key:', publicKeyAlgorithm, publicKeyLength);
 
                     // add cert informations
                     // TODO: maybe remove the if by monads http://blog.osteele.com/posts/2007/12/cheap-monads/
@@ -121,7 +121,7 @@
                     scan.certificate.subject = result.document.ssltest[0].certificate[0].subject[0];
 
                     // collect all the ciphers suites
-                    console.log(domain, '✔︎'.green, 'ciphers found:', result.document.ssltest[0].cipher.length);
+                    console.log(Date(), domain, '✔︎'.green, 'ciphers found:', result.document.ssltest[0].cipher.length);
                     scan.ciphers = [];
                     for (var i = 0; i < result.document.ssltest[0].cipher.length; i++) {
                         var cipher = result.document.ssltest[0].cipher[i].$;
@@ -152,7 +152,7 @@
 
                 });
             } catch (e) {
-                console.log(domain, 'X JSERR', JSON.stringify(e).substring(0,100));
+                console.log(Date(), domain, 'X JSERR', JSON.stringify(e).substring(0,100));
             } finally {
                 // delete the from SSLScan generated xml file
                 child_process.execSync(util.format('rm -f %s', xmlFileName), { encoding: 'utf8' });
@@ -169,10 +169,10 @@
     var insertScan = function(scan, cb) {
         scans.insert(scan, function(err, doc){
             if (err) {
-                console.log(scan.domain, 'X'.red, 'Error while inserting the new Scan', err);
+                console.log(Date(), scan.domain, 'X'.red, 'Error while inserting the new Scan', err);
                 if (cb) cb(err);
             } else {
-                console.log(scan.domain, '✔︎'.green, 'Scan inserted in DB', doc.insertedIds[0]);
+                console.log(Date(), scan.domain, '✔︎'.green, 'Scan inserted in DB', doc.insertedIds[0]);
                 if (cb) cb();
             }
         });
@@ -189,10 +189,10 @@
             },
             function(err, results) {
                 if (err) {
-                    console.log(domain, 'X'.red, 'Error while removing WIP flag', err);
+                    console.log(Date(), domain, 'X'.red, 'Error while removing WIP flag', err);
                     if (cb) cb(err);
                 } else {
-                    console.log(domain, '✔︎'.green, 'WIP flag succesfully removed');
+                    console.log(Date(), domain, '✔︎'.green, 'WIP flag succesfully removed');
                     if (cb) cb();
                 }
             }
