@@ -79,7 +79,8 @@
                     // read the xml and parse it to json
                     var xmlFile = fs.readFileSync(xmlFileName, 'utf8');
                     parser.parseString(xmlFile, function(err, result) {
-                        if (err) console.log(Date(), 'parseErr', err);
+                        if (err) console.log(Date(), 'parseErr'.red, err);
+                        if (!result.document.ssltest) return console.log('parseErr'.red, 'result.document.ssltest is undefined');
 
                         // get some more certificate information via OpenSLL
                         var publicKeyAlgorithm = '';
