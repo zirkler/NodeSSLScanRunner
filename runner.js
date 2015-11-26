@@ -135,7 +135,7 @@
                                 scan.ciphers = [];
 
                                 // check if there actually is a  ciphers array, some server provide no ciphers
-                                if (result.document.ssltest[0].cipher) {
+                                if (typeof result.document.ssltest[0].cipher !== 'undefined') {
                                     for (var i = 0; i < result.document.ssltest[0].cipher.length; i++) {
                                         var cipher = {};
                                         cipher.cipher      = result.document.ssltest[0].cipher[i].$.cipher;
