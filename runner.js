@@ -133,39 +133,43 @@
                                 // collect all the ciphers suites
                                 console.log(Date(), domain.domain, '✔︎'.green, 'ciphers found:', result.document.ssltest[0].cipher.length);
                                 scan.ciphers = [];
-                                for (var i = 0; i < result.document.ssltest[0].cipher.length; i++) {
-                                    var cipher = {};
-                                    cipher.cipher      = result.document.ssltest[0].cipher[i].$.cipher;
-                                    cipher.protocol    = result.document.ssltest[0].cipher[i].$.sslversion;
-                                    cipher.status      = result.document.ssltest[0].cipher[i].$.status;
-                                    cipher.curve       = result.document.ssltest[0].cipher[i].$.curve;
-                                    cipher.bits        = parseInt(result.document.ssltest[0].cipher[i].$.bits);
 
-                                    // read key exchange strenght
-                                    if (result.document.ssltest[0].cipher[i].$.ecdhbits) {
-                                        // when ECDH is used as key exchange
-                                        cipher.kxStrenght = parseInt(result.document.ssltest[0].cipher[i].$.ecdhbits);
-                                    } else if (result.document.ssltest[0].cipher[i].$.dhebits) {
-                                        // when DHE is used as key exchange
-                                        cipher.kxStrenght = parseInt(result.document.ssltest[0].cipher[i].$.dhebits);
-                                    } else {
-                                        // when neither ECDH nor DHE is used, its RSA and this means
-                                        // the client use the servers public key for key exchange
-                                        cipher.kxStrenght = scan.certificate.publicKeyLength;
+                                // check if there actually is a  ciphers array, some server provide no ciphers
+                                if (result.document.ssltest[0].cipher) {
+                                    for (var i = 0; i < result.document.ssltest[0].cipher.length; i++) {
+                                        var cipher = {};
+                                        cipher.cipher      = result.document.ssltest[0].cipher[i].$.cipher;
+                                        cipher.protocol    = result.document.ssltest[0].cipher[i].$.sslversion;
+                                        cipher.status      = result.document.ssltest[0].cipher[i].$.status;
+                                        cipher.curve       = result.document.ssltest[0].cipher[i].$.curve;
+                                        cipher.bits        = parseInt(result.document.ssltest[0].cipher[i].$.bits);
+
+                                        // read key exchange strenght
+                                        if (result.document.ssltest[0].cipher[i].$.ecdhbits) {
+                                            // when ECDH is used as key exchange
+                                            cipher.kxStrenght = parseInt(result.document.ssltest[0].cipher[i].$.ecdhbits);
+                                        } else if (result.document.ssltest[0].cipher[i].$.dhebits) {
+                                            // when DHE is used as key exchange
+                                            cipher.kxStrenght = parseInt(result.document.ssltest[0].cipher[i].$.dhebits);
+                                        } else {
+                                            // when neither ECDH nor DHE is used, its RSA and this means
+                                            // the client use the servers public key for key exchange
+                                            cipher.kxStrenght = scan.certificate.publicKeyLength;
+                                        }
+
+                                        // get some additional cipher info (actualy its informations from the tls specs)
+                                        var additionalCipherInfo = cipherInfo.getCipherInfos(cipher.cipher);
+                                        if (additionalCipherInfo) {
+                                            cipher.kx = additionalCipherInfo.kx;
+                                            cipher.au = additionalCipherInfo.au;
+                                            cipher.enc = additionalCipherInfo.enc;
+                                            cipher.mac = additionalCipherInfo.mac;
+                                            cipher.export = additionalCipherInfo.export;
+                                        }
+
+                                        // push the cipher to the hosts ciphers array
+                                        scan.ciphers.push(cipher);
                                     }
-
-                                    // get some additional cipher info (actualy its informations from the tls specs)
-                                    var additionalCipherInfo = cipherInfo.getCipherInfos(cipher.cipher);
-                                    if (additionalCipherInfo) {
-                                        cipher.kx = additionalCipherInfo.kx;
-                                        cipher.au = additionalCipherInfo.au;
-                                        cipher.enc = additionalCipherInfo.enc;
-                                        cipher.mac = additionalCipherInfo.mac;
-                                        cipher.export = additionalCipherInfo.export;
-                                    }
-
-                                    // push the cipher to the hosts ciphers array
-                                    scan.ciphers.push(cipher);
                                 }
 
                                 // insert the new scan into DB
