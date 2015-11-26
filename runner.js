@@ -125,12 +125,20 @@
                                     if (result.document.ssltest[0].certificate[0]['self-signed'])
                                         scan.certificate.selfSigned = result.document.ssltest[0].certificate[0]['self-signed'][0];
 
-                                    scan.certificate.notValidAfter      = result.document.ssltest[0].certificate[0]['not-valid-after'][0];
-                                    scan.certificate.notValidBefore     = result.document.ssltest[0].certificate[0]['not-valid-before'][0];
-                                    scan.certificate.signatureAlgorithm = result.document.ssltest[0].certificate[0]['signature-algorithm'][0];
+                                    if (result.document.ssltest[0].certificate[0]['not-valid-after'])
+                                        scan.certificate.notValidAfter = result.document.ssltest[0].certificate[0]['not-valid-after'][0];
+
+                                    if (result.document.ssltest[0].certificate[0]['not-valid-before'])
+                                        scan.certificate.notValidBefore = result.document.ssltest[0].certificate[0]['not-valid-before'][0];
+
+                                    if (result.document.ssltest[0].certificate[0]['signature-algorithm'])
+                                        scan.certificate.signatureAlgorithm = result.document.ssltest[0].certificate[0]['signature-algorithm'][0];
+
+                                    if (result.document.ssltest[0].certificate[0].subject)
+                                        scan.certificate.subject = result.document.ssltest[0].certificate[0].subject[0];
+
                                     scan.certificate.publicKeyAlgorithm = publicKeyAlgorithm;
                                     scan.certificate.publicKeyLength    = publicKeyLength;
-                                    scan.certificate.subject            = result.document.ssltest[0].certificate[0].subject[0];
                                 }
 
                                 // collect all the ciphers suites
