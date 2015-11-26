@@ -4,6 +4,7 @@
     'use strict';
 
     var fs = require('fs');
+    var tld = require('tldjs');
     var util = require('util');
     var xml2js = require('xml2js');
     var colors = require('colors');
@@ -22,7 +23,7 @@
     // here we are going to save our temporary files
     child_process.execSync('mkdir -p tmp', { encoding: 'utf8' });
 
-    mongoose.connect('mongodb://localhost:27017/czTls', function(err) {
+    mongoose.connect('mongodb://localhost:27017/tls', function(err) {
         if (err) throw err;
 
         // start the work
@@ -59,7 +60,8 @@
 
         // setup the scan object
         scan.domain = domain.domain;
-        scan.source = domain.sources;
+        scan.tld = tld.getPublicSuffix(scan.domain);
+        scan.sources = domain.sources;
         scan.scanDate = new Date();
 
         // execute SSLScan

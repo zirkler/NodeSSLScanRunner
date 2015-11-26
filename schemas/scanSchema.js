@@ -5,7 +5,7 @@
 
     // create mongodb schema for our news
     var scanSchema = new mongoose.Schema({
-        source: [String],
+        sources: [String],
         scanDate: {type: Date, required: true},
         domain: {type: String, required: true},
         scanError: {type: Boolean, required: true},
