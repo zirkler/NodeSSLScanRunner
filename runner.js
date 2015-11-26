@@ -26,7 +26,11 @@
         if (err) throw err;
 
         // start the work
-        workOnNextDomain();
+        for (var i = 0; i < 5; i++) {
+            setTimeout(function() {
+                workOnNextDomain();
+            }, 1000*i);
+        }
     });
 
     var workOnNextDomain = function() {
@@ -109,11 +113,16 @@
                                 // add cert informations
                                 // TODO: maybe remove the if by monads http://blog.osteele.com/posts/2007/12/cheap-monads/
                                 scan.certificate = {};
-                                if (result.document.ssltest[0].certificate[0].altnames)
+                                if (result.document.ssltest[0].certificate &&
+                                    result.document.ssltest[0].certificate[0].altnames)
                                     scan.certificate.altnames = result.document.ssltest[0].certificate[0].altnames[0];
+
                                 scan.certificate.expired            = result.document.ssltest[0].certificate[0].expired[0];
                                 scan.certificate.issuer             = result.document.ssltest[0].certificate[0].issuer[0];
-                                scan.certificate.selfSigned         = result.document.ssltest[0].certificate[0]['self-signed'][0];
+
+                                if (result.document.ssltest[0].certificate[0]['self-signed'])
+                                    scan.certificate.selfSigned         = result.document.ssltest[0].certificate[0]['self-signed'][0];
+
                                 scan.certificate.notValidAfter      = result.document.ssltest[0].certificate[0]['not-valid-after'][0];
                                 scan.certificate.notValidBefore     = result.document.ssltest[0].certificate[0]['not-valid-before'][0];
                                 scan.certificate.signatureAlgorithm = result.document.ssltest[0].certificate[0]['signature-algorithm'][0];
