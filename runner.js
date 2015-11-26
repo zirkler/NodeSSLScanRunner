@@ -130,12 +130,12 @@
                                     scan.certificate.publicKeyLength    = publicKeyLength;
                                     scan.certificate.subject            = result.document.ssltest[0].certificate[0].subject[0];
                                 }
+
                                 // collect all the ciphers suites
-                                console.log(Date(), domain.domain, '✔︎'.green, 'ciphers found:', result.document.ssltest[0].cipher.length);
                                 scan.ciphers = [];
 
                                 // check if there actually is a  ciphers array, some server provide no ciphers
-                                if (typeof result.document.ssltest[0].cipher !== 'undefined') {
+                                if (typeof result.document.ssltest[0].cipher) {
                                     for (var i = 0; i < result.document.ssltest[0].cipher.length; i++) {
                                         var cipher = {};
                                         cipher.cipher      = result.document.ssltest[0].cipher[i].$.cipher;
@@ -171,6 +171,8 @@
                                         scan.ciphers.push(cipher);
                                     }
                                 }
+
+                                console.log(Date(), domain.domain, '✔︎'.green, 'ciphers found:', scan.ciphers.length);
 
                                 // insert the new scan into DB
                                 scan.scanError = false;
