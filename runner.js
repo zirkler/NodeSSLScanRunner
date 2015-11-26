@@ -145,9 +145,7 @@
                                         cipher.bits        = parseInt(result.document.ssltest[0].cipher[i].$.bits);
 
                                         // read key exchange strenght
-                                        if (result.document.ssltest[0].cipher[i].$.ecdhbits) {
                                             // when ECDH is used as key exchange
-                                            cipher.kxStrenght = parseInt(result.document.ssltest[0].cipher[i].$.ecdhbits);
                                         } else if (result.document.ssltest[0].cipher[i].$.dhebits) {
                                             // when DHE is used as key exchange
                                             cipher.kxStrenght = parseInt(result.document.ssltest[0].cipher[i].$.dhebits);
