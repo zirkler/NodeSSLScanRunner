@@ -55,10 +55,7 @@
 
     var scan = function(domain) {
         var scan = new Scan();
-        var xmlFileName = util.format('tmp/%s.xml', domain.domain);
-        var pemFileName = util.format('tmp/%s.pem', domain.domain);
-        var sslScanCmd = './sslscan';
-        var sslScanArgs = util.format('--no-heartbleed --xml=%s %s', xmlFileName, domain.domain);
+        var xmlFileName = util.format(__dirname+'/tmp/%s.xml', domain.domain);
 
         // setup the scan object
         scan.domain = domain.domain;
@@ -67,7 +64,7 @@
 
         // execute SSLScan
         console.log(Date(), domain.domain, '-> starting SSLScan'.yellow);
-        spawn('./sslscan', ['--no-colour', '--no-heartbleed', util.format('--xml=%s', xmlFileName), domain.domain], {capture: [ 'stdout', 'stderr' ], encoding: 'utf8'})
+        spawn('./sslscan/sslscan', ['--no-colour', '--no-heartbleed', util.format('--xml=%s', xmlFileName), domain.domain], {capture: [ 'stdout', 'stderr' ], encoding: 'utf8'})
         .then(function (result) {
             if (result.stderr.length > 0) {
                 // SSLScan executed with errors errors
@@ -111,7 +108,6 @@
                                 console.log(Date(), domain.domain, '✔︎'.green, 'Public Key:', publicKeyAlgorithm, publicKeyLength);
 
                                 // add cert informations
-                                // TODO: maybe remove the if by monads http://blog.osteele.com/posts/2007/12/cheap-monads/
                                 scan.certificate = {};
                                 if (result.document.ssltest[0].certificate) {
                                     if (result.document.ssltest[0].certificate[0].altnames)
@@ -186,9 +182,6 @@
                 } finally {
                     // delete the from SSLScan generated xml file
                     child_process.execSync(util.format('rm -f %s', xmlFileName), { encoding: 'utf8' });
-
-                    // delete the downloaded certificate
-                    child_process.execSync(util.format('rm -f %s', pemFileName), { encoding: 'utf8' });
 
                     // remove WIP flag and move to next domain
                     scan.wip = false;

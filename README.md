@@ -1,12 +1,12 @@
 # A Node.js SSLScan Runner
-  - Pulls a single domain from a domain-list-txt
+  - Pulls a domain from a mongoDB collection
   - Scans the domain with the power of SSLScan
   - SSLScan writes an result XML-File
   - The runner parses the xml and writes the results into mongoDB, (sequentially, after each got scanned)
   - starts over again, till all domains in the domains txt is done
 
 # Setup
-  - make sure SSLScan works
+  - make sure SSLScan works inside the sslscan directory
   - ``npm install``
   - ``node runner.js ``
 
