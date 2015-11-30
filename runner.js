@@ -162,17 +162,17 @@
                                         cipher.curve       = result.document.ssltest[0].cipher[i].$.curve;
                                         cipher.bits        = parseInt(result.document.ssltest[0].cipher[i].$.bits);
 
-                                        // read key exchange strenght
+                                        // read key exchange strength
                                         if (result.document.ssltest[0].cipher[i].$.ecdhebits) {
                                             // when ECDH is used as key exchange
-                                            cipher.kxStrenght = parseInt(result.document.ssltest[0].cipher[i].$.ecdhebits);
+                                            cipher.kxStrength = parseInt(result.document.ssltest[0].cipher[i].$.ecdhebits);
                                         } else if (result.document.ssltest[0].cipher[i].$.dhebits) {
                                             // when DHE is used as key exchange
-                                            cipher.kxStrenght = parseInt(result.document.ssltest[0].cipher[i].$.dhebits);
+                                            cipher.kxStrength = parseInt(result.document.ssltest[0].cipher[i].$.dhebits);
                                         } else {
                                             // when neither ECDH nor DHE is used, its RSA and this means
                                             // the client use the servers public key for key exchange
-                                            cipher.kxStrenght = scan.certificate.publicKeyLength;
+                                            cipher.kxStrength = scan.certificate.publicKeyLength;
                                         }
 
                                         // get some additional cipher info (actualy its informations from the tls specs)
@@ -220,7 +220,7 @@
     var insertScan = function(scan, cb) {
         scan.save(function (err, rScan) {
             if (err) return console.log(Date(), scan.domain, 'X'.red, 'Error while inserting the new Scan', err);
-            console.log(Date(), scan.domain, '✔︎'.green, 'Scan inserted in DB', rScan.id);
+            console.log(colors.green('%s %s ✔︎ Scan inserted in DB %s'), Date(), scan.domain, rScan.id.toString());
         });
     };
 }());
