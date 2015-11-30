@@ -6,5 +6,5 @@ db.scans.find({}).forEach(function(item)
         item.ciphers[i].kxStrength = item.ciphers[i].kxStrenght;
         delete item.ciphers[i].kxStrenght;
     }
-    db.Setting.update({_id: item._id}, item);
+    db.scans.update({_id: item._id}, item);
 });
