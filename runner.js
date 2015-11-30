@@ -19,6 +19,7 @@
     var Domain = require('./schemas/domainSchema');
 
     var parser = new xml2js.Parser();
+    var wipMap = {};
 
     // here we are going to save our temporary files
     child_process.execSync('mkdir -p tmp', { encoding: 'utf8' });
@@ -27,7 +28,7 @@
         if (err) throw err;
 
         // start the work
-        for (var i = 0; i < 5; i++) {
+        for (var i = 0; i < 50; i++) {
             setTimeout(function() {
                 workOnNextDomain();
             }, 1000*i);
@@ -39,18 +40,25 @@
         console.log(Date(), 'looking for next domain...'.yellow);
 
         // find a domain on which no one is working
-        Domain.findOne({wip: false}).sort({lastScanDate: 1}).then(function(domain){
-            console.log(Date(), domain.domain, '✔︎'.green, 'domain received');
+        Domain.findOne({wip: false}).sort({lastScanDate: 1}).then(function(domain) {
+            if (domain in wipMap) {
+                // someone is already working on this domain, take another one
+                console.log(Date(), domain.domain, 'somone already works on this domain, take another one'.rainbow);
+                workOnNextDomain();
+            } else {
+                console.log(Date(), domain.domain, '✔︎'.green, 'domain received');
 
-            // set the wip flag and lastScanDate, then start the scanning
-            domain.wip = true;
-            domain.lastScanDate = Date();
-            domain.save().then(function(rDomain){
-                console.log(Date(), domain.domain, '✔︎'.green, 'WIP flag set');
+                // no-one is working on this domain, mark it as wip and start the work
+                wipMap[domain.domain] = true;
+                domain.wip = true;
+                domain.lastScanDate = Date();
+                domain.save().then(function(rDomain){
+                    console.log(Date(), domain.domain, '✔︎'.green, 'WIP flag set');
 
-                // start the actual scanning
-                scan(domain);
-            });
+                    // start the actual scanning
+                    scan(domain);
+                });
+            }
         });
     };
 
@@ -197,6 +205,7 @@
                     child_process.execSync(util.format('rm -f %s', xmlFileName), { encoding: 'utf8' });
 
                     // remove WIP flag and move to next domain
+                    delete wipMap[scan.domain];
                     scan.wip = false;
                     scan.save();
 
