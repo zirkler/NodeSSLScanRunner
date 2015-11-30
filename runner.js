@@ -41,7 +41,7 @@
 
         // find a domain on which no one is working
         Domain.findOne({wip: false}).sort({lastScanDate: 1}).then(function(domain) {
-            if (domain in wipMap) {
+            if (domain.domain in wipMap) {
                 // someone is already working on this domain, take another one
                 console.log(Date(), domain.domain, 'somone already works on this domain, take another one'.rainbow);
                 workOnNextDomain();
