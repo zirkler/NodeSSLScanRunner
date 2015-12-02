@@ -25,7 +25,7 @@ Before we can run SSLScan, we need some domains, which we want to scan, in our d
 - `mongoimport --db tls --collection domains --file concatinated.json`
 
 ## Run
-``node runner.js``
+``node runner.js [number-of-jobs]``
 
 
 ## Helpful stuff
