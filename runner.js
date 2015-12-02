@@ -206,8 +206,8 @@
 
                     // remove WIP flag and move to next domain
                     delete wipMap[scan.domain];
-                    scan.wip = false;
-                    scan.save();
+                    domain.wip = false;
+                    domain.save();
 
                     // work on the next document
                     workOnNextDomain();
