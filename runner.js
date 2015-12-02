@@ -21,6 +21,9 @@
     var parser = new xml2js.Parser();
     var wipMap = {};
 
+    var args = process.argv.slice(2);
+    var jobs = parseInt(args[0] || 50);
+
     // here we are going to save our temporary files
     child_process.execSync('mkdir -p tmp', { encoding: 'utf8' });
 
@@ -28,10 +31,10 @@
         if (err) throw err;
 
         // start the work
-        for (var i = 0; i < 50; i++) {
+        for (var i = 0; i < jobs; i++) {
             setTimeout(function() {
                 workOnNextDomain();
-            }, 1000*i);
+            }, 100*i);
         }
     });
 
