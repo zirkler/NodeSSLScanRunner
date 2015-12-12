@@ -4,7 +4,6 @@
     'use strict';
 
     var fs = require('fs');
-    var tld = require('tldjs');
     var util = require('util');
     var xml2js = require('xml2js');
     var colors = require('colors');
@@ -39,14 +38,14 @@
     });
 
     var workOnNextDomain = function() {
-        // receive a domain from mongoDB
-        console.log(Date(), 'looking for next domain...'.yellow);
-
         // find a domain on which no one is working
         Domain.findOne({wip: false}).sort({lastScanDate: 1}).then(function(domain) {
+            if (!domain) {
+                console.log("no domain found");
+            }
+
             if (domain.domain in wipMap) {
                 // someone is already working on this domain, take another one
-                console.log(Date(), domain.domain, 'somone already works on this domain, take another one'.rainbow);
                 workOnNextDomain();
             } else {
                 console.log(Date(), domain.domain, '✔︎'.green, 'domain received');
@@ -71,7 +70,7 @@
 
         // setup the scan object
         scan.domain = domain.domain;
-        scan.tld = tld.getPublicSuffix(scan.domain);
+        scan.tld = scan.domain.split('.')[scan.domain.split('.').length-1];
         scan.sources = domain.sources;
         scan.scanDate = new Date();
 
